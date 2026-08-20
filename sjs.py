@@ -10,7 +10,9 @@ import random
 import struct
 import logging
 import tempfile
+import threading
 from datetime import datetime
+from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from mutagen.mp4 import MP4, MP4Cover
@@ -977,10 +979,32 @@ async def cmd_meta(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await send_msg(f"✅ Done — <b>{total}</b> track(s) from <b>{collection_name}</b>")
 
+# ====================== FLASK KEEP-ALIVE (for Render free tier) ======================
+
+flask_app = Flask(__name__)
+
+@flask_app.route('/health')
+def health():
+    return 'ok', 200
+
+@flask_app.route('/')
+def index():
+    return 'Telegram bot is running', 200
+
 # ====================== MAIN ======================
 
 if __name__ == "__main__":
     log.info("Bot started.")
+    
+    # Start Flask server on a background thread
+    flask_thread = threading.Thread(
+        target=lambda: flask_app.run(host='0.0.0.0', port=10000, debug=False),
+        daemon=True
+    )
+    flask_thread.start()
+    log.info("Flask keep-alive server started on port 10000")
+    
+    # Start Telegram bot
     from telegram.request import HTTPXRequest
     app = (
         ApplicationBuilder()
